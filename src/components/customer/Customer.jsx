@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Users, MapPin, Building, Phone, User, X, Edit3, Trash2, Check, XCircle } from 'lucide-react';
+import { Plus, Search, Users, MapPin, Building, Phone, User, X, Edit3, Trash2, Check, XCircle, Menu, Package, FileText, ShoppingCart } from 'lucide-react';
 
 const CustomerModule = () => {
   const [customers, setCustomers] = useState([]);
@@ -8,6 +8,7 @@ const CustomerModule = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [activeMenu, setActiveMenu] = useState('customer');
   const [filters, setFilters] = useState({
     city: '',
     area_name: ''
@@ -151,69 +152,108 @@ const CustomerModule = () => {
     setShowDeleteConfirm(null);
   };
 
+  const menuItems = [
+    { id: 'customer', name: 'Customer', icon: Users, active: true },
+    { id: 'manufacturing', name: 'Manufacturing', icon: Package, active: false },
+    { id: 'record', name: 'Record', icon: FileText, active: false },
+    { id: 'sell', name: 'Sell', icon: ShoppingCart, active: false }
+  ];
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 to-blue-50 p-4">
       <div className="w-full max-w-full mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 mb-6 p-6">
+        <div className="bg-gradient-to-r from-white to-slate-50 rounded-2xl shadow-lg border border-slate-200 mb-6 p-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="bg-blue-600 rounded-lg p-2">
-                <Users className="h-6 w-6 text-white" />
+            <div className="flex items-center space-x-4">
+              <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-3 shadow-lg">
+                <Users className="h-7 w-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-800">Customer Management</h1>
-                <p className="text-slate-600">Manage your customer database</p>
+                <h1 className="text-3xl font-bold text-slate-800">Amul Commodity</h1>
+                
               </div>
             </div>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2 transform hover:scale-105"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Add Customer</span>
-            </button>
+            
+            {/* Navigation Menu */}
+            <div className="flex items-center space-x-1 bg-slate-100 rounded-2xl p-2 shadow-inner">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveMenu(item.id)}
+                    className={`flex items-center space-x-2 px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                      activeMenu === item.id
+                        ? 'bg-white text-blue-600 shadow-lg transform scale-105'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50 hover:scale-105'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="hidden sm:inline">{item.name}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Filters and Actions */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 mb-6 p-6">
-          <div className="flex items-center space-x-4 mb-4">
-            <Search className="h-5 w-5 text-slate-500" />
-            <h2 className="text-lg font-semibold text-slate-800">Filter Customers</h2>
-            {(filters.city || filters.area_name) && (
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
+            {/* Left Side - Add Customer Button */}
+            <div className="flex items-center mb-4 lg:mb-0 lg:ml-8">
               <button
-                onClick={clearFilters}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                onClick={() => setIsModalOpen(true)}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-3 transform hover:scale-105"
               >
-                Clear Filters
+                <Plus className="h-5 w-5" />
+                <span>Add Customer</span>
               </button>
-            )}
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
-              <input
-                type="text"
-                name="city"
-                placeholder="Filter by city"
-                value={filters.city}
-                onChange={handleFilterChange}
-                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50"
-              />
             </div>
             
-            <div className="relative">
-              <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
-              <input
-                type="text"
-                name="area_name"
-                placeholder="Filter by area"
-                value={filters.area_name}
-                onChange={handleFilterChange}
-                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50"
-              />
+            {/* Right Side - Filters */}
+            <div className="flex-1 lg:max-w-lg">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex items-center space-x-2">
+                  <Search className="h-5 w-5 text-slate-500" />
+                  <h2 className="text-lg font-semibold text-slate-800">Filter Customers</h2>
+                </div>
+                {(filters.city || filters.area_name) && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-colors duration-200"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <input
+                    type="text"
+                    name="city"
+                    placeholder="Filter by city"
+                    value={filters.city}
+                    onChange={handleFilterChange}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50 hover:bg-white"
+                  />
+                </div>
+                
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <input
+                    type="text"
+                    name="area_name"
+                    placeholder="Filter by area"
+                    value={filters.area_name}
+                    onChange={handleFilterChange}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50 hover:bg-white"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
