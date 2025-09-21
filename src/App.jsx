@@ -1,26 +1,27 @@
-import React, { useState } from 'react'
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import Layout from './components/layout/Layout'
 import CustomerModule from './components/customer/Customer'
 import ManufacturingModule from './components/manufacturing/Manufacture'
+import SalesModule from './components/sales/Sales'
+import RecordModule from './components/record/Record'
 import './index.css'
 
 function App() {
-  const [activeModule, setActiveModule] = useState('customer')
-
-  const renderModule = () => {
-    switch(activeModule) {
-      case 'customer':
-        return <CustomerModule activeModule={activeModule} setActiveModule={setActiveModule} />
-      case 'manufacturing':
-        return <ManufacturingModule />
-      default:
-        return <CustomerModule activeModule={activeModule} setActiveModule={setActiveModule} />
-    }
-  }
-
   return (
-    <div className="App">
-      {renderModule()}
-    </div>
+    <Router>
+      <div className="App">
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Navigate to="/customer" replace />} />
+            <Route path="customer" element={<CustomerModule />} />
+            <Route path="manufacturing" element={<ManufacturingModule />} />
+            <Route path="record" element={<RecordModule />} />
+            <Route path="sell" element={<SalesModule />} />
+          </Route>
+        </Routes>
+      </div>
+    </Router>
   )
 }
 

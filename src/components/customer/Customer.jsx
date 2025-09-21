@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Users, MapPin, Building, Phone, User, X, Edit3, Trash2, Check, XCircle, Menu, Package, FileText, ShoppingCart } from 'lucide-react';
+import { Plus, Search, Users, MapPin, Building, Phone, User, X, Edit3, Trash2, Check, XCircle } from 'lucide-react';
 
-const CustomerModule = ({ activeModule, setActiveModule }) => {
+const CustomerModule = () => {
   const [customers, setCustomers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -151,51 +151,8 @@ const CustomerModule = ({ activeModule, setActiveModule }) => {
     setShowDeleteConfirm(null);
   };
 
-  const menuItems = [
-    { id: 'customer', name: 'Customer', icon: Users, active: true },
-    { id: 'manufacturing', name: 'Manufacturing', icon: Package, active: false },
-    { id: 'record', name: 'Record', icon: FileText, active: false },
-    { id: 'sell', name: 'Sell', icon: ShoppingCart, active: false }
-  ];
-
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 to-blue-50 p-4">
-      <div className="w-full max-w-full mx-auto">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-white to-slate-50 rounded-2xl shadow-lg border border-slate-200 mb-6 p-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-3 shadow-lg">
-                <Users className="h-7 w-7 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-slate-800">Amul Commodity</h1>
-                
-              </div>
-            </div>
-            
-            {/* Navigation Menu */}
-            <div className="flex items-center space-x-1 bg-slate-100 rounded-2xl p-2 shadow-inner">
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveModule(item.id)}
-                    className={`flex items-center space-x-2 px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                      activeModule === item.id
-                        ? 'bg-white text-blue-600 shadow-lg transform scale-105'
-                        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50 hover:scale-105'
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className="hidden sm:inline">{item.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+    <div className="w-full">
 
         {/* Filters and Actions */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 mb-6 p-6">
@@ -398,7 +355,6 @@ const CustomerModule = ({ activeModule, setActiveModule }) => {
             )}
           </div>
         </div>
-      </div>
 
       {/* Modal */}
       {isModalOpen && (
