@@ -1,14 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, Users, MapPin, Building, Phone, User, X, Edit3, Trash2, Check, XCircle, Menu, Package, FileText, ShoppingCart } from 'lucide-react';
 
-const CustomerModule = () => {
+const CustomerModule = ({ activeModule, setActiveModule }) => {
   const [customers, setCustomers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [activeMenu, setActiveMenu] = useState('customer');
   const [filters, setFilters] = useState({
     city: '',
     area_name: ''
@@ -182,9 +181,9 @@ const CustomerModule = () => {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveMenu(item.id)}
+                    onClick={() => setActiveModule(item.id)}
                     className={`flex items-center space-x-2 px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                      activeMenu === item.id
+                      activeModule === item.id
                         ? 'bg-white text-blue-600 shadow-lg transform scale-105'
                         : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50 hover:scale-105'
                     }`}
