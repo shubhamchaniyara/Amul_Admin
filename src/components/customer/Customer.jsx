@@ -1,6 +1,31 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, Users, MapPin, Building, Phone, User, X, Edit3, Trash2, Check, XCircle } from 'lucide-react';
 
+// Simple Toast Component
+const Toast = ({ message, type, onClose }) => {
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose();
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+      type === 'success' 
+        ? 'bg-green-500 text-white' 
+        : 'bg-red-500 text-white'
+    }`}>
+      <div className="flex items-center space-x-2">
+        <span>{message}</span>
+        <button onClick={onClose} className="ml-2 text-white hover:text-gray-200">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const CustomerModule = () => {
   const [customers, setCustomers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -8,6 +33,7 @@ const CustomerModule = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [toast, setToast] = useState(null);
   const [filters, setFilters] = useState({
     city: '',
     area_name: ''
@@ -21,19 +47,29 @@ const CustomerModule = () => {
     contact_no: ''
   });
 
-  // Sample data for demonstration
-  const sampleCustomers = [
-    { id: 1, shop_name: 'Raj Electronics', name: 'Rajesh Patel', city: 'Surat', area_name: 'Varachha', contact_no: '9876543210' },
-    { id: 2, shop_name: 'Modern Textiles', name: 'Amit Shah', city: 'Surat', area_name: 'Adajan', contact_no: '9876543211' },
-    { id: 3, shop_name: 'City Mall', name: 'Priya Sharma', city: 'Ahmedabad', area_name: 'Satellite', contact_no: '9876543212' },
-    { id: 4, shop_name: 'Tech Solutions', name: 'Kiran Modi', city: 'Surat', area_name: 'Varachha', contact_no: '9876543213' }
-  ];
-
-  // Initialize with sample data on first render
-  React.useEffect(() => {
-    if (customers.length === 0) {
-      setCustomers(sampleCustomers);
+  const fetchAllCustomers = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/customers/all');
+      if (response.ok) {
+        const result = await response.json();
+        const formattedCustomers = result.data.map(customer => ({
+          id: customer.id,
+          shop_name: customer.shopName,
+          name: customer.ownerName,
+          city: customer.city,
+          area_name: customer.area,
+          contact_no: customer.contactNumber
+        }));
+        setCustomers(formattedCustomers);
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
     }
+  };
+
+  // Load customers from API on component mount
+  React.useEffect(() => {
+    fetchAllCustomers();
   }, []);
 
   const handleInputChange = (e) => {
@@ -63,44 +99,104 @@ const CustomerModule = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault(); // Prevent form submission from affecting filters
     
     // Check if contact_no is provided and is valid (exactly 10 digits)
     const isContactValid = !formData.contact_no || (formData.contact_no.length === 10 && /^\d{10}$/.test(formData.contact_no));
     
     if (formData.shop_name && formData.city && isContactValid) {
-      const newCustomer = {
-        id: Date.now(),
-        ...formData
-      };
-      setCustomers(prev => [...prev, newCustomer]);
-      setFormData({
-        shop_name: '',
-        name: '',
-        city: '',
-        area_name: '',
-        contact_no: ''
-      });
-      setIsModalOpen(false);
+      try {
+        const response = await fetch('http://localhost:5000/customers/addcustomer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            shopName: formData.shop_name,
+            ownerName: formData.name,
+            city: formData.city,
+            area: formData.area_name,
+            contactNumber: formData.contact_no
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const newCustomer = {
+            id: result.data.id,
+            shop_name: result.data.shopName,
+            name: result.data.ownerName,
+            city: result.data.city,
+            area_name: result.data.area,
+            contact_no: result.data.contactNumber
+          };
+          setCustomers(prev => [...prev, newCustomer]);
+          setFormData({
+            shop_name: '',
+            name: '',
+            city: '',
+            area_name: '',
+            contact_no: ''
+          });
+          setIsModalOpen(false);
+          setToast({ message: 'Customer added successfully!', type: 'success' });
+        } else {
+          const error = await response.json();
+          setToast({ message: `Error: ${error.message}`, type: 'error' });
+        }
+      } catch (error) {
+        console.error('Error adding customer:', error);
+        setToast({ message: 'Failed to add customer. Please try again.', type: 'error' });
+      }
     } else if (formData.contact_no && formData.contact_no.length !== 10) {
       alert('Contact number must be exactly 10 digits');
     }
   };
 
-  const filteredCustomers = useMemo(() => {
-    return customers.filter(customer => {
-      const cityMatch = !filters.city || 
-        customer.city.toLowerCase().includes(filters.city.toLowerCase());
-      const areaMatch = !filters.area_name || 
-        customer.area_name.toLowerCase().includes(filters.area_name.toLowerCase());
-      return cityMatch && areaMatch;
-    });
-  }, [customers, filters]);
+  // Fetch filtered customers from API
+  const fetchFilteredCustomers = async () => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (filters.city) queryParams.append('city', filters.city);
+      if (filters.area_name) queryParams.append('area', filters.area_name);
+      
+      const url = `http://localhost:5000/customers?${queryParams.toString()}`;
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        const result = await response.json();
+        const formattedCustomers = result.data.map(customer => ({
+          id: customer.id,
+          shop_name: customer.shopName,
+          name: customer.ownerName,
+          city: customer.city,
+          area_name: customer.area,
+          contact_no: customer.contactNumber
+        }));
+        setCustomers(formattedCustomers);
+      }
+    } catch (error) {
+      console.error('Error fetching filtered customers:', error);
+    }
+  };
+
+  const filteredCustomers = customers; // Now using API-filtered data
 
   const clearFilters = () => {
     setFilters({ city: '', area_name: '' });
+    // Fetch all customers when clearing filters
+    fetchAllCustomers();
   };
+
+  // Trigger filtering when filters change
+  React.useEffect(() => {
+    if (filters.city || filters.area_name) {
+      fetchFilteredCustomers();
+    } else {
+      fetchAllCustomers();
+    }
+  }, [filters]);
 
   const handleCustomerClick = (customer) => {
     setSelectedCustomer(customer);
@@ -117,17 +213,51 @@ const CustomerModule = () => {
     // Keep the modal open during editing
   };
 
-  const handleSaveEdit = (customerId) => {
+  const handleSaveEdit = async (customerId) => {
     if (editingCustomer.shop_name && editingCustomer.city) {
       const isContactValid = !editingCustomer.contact_no || (editingCustomer.contact_no.length === 10 && /^\d{10}$/.test(editingCustomer.contact_no));
       
       if (isContactValid) {
-        setCustomers(prev => prev.map(customer => 
-          customer.id === customerId ? editingCustomer : customer
-        ));
-        setEditingCustomer(null);
+        try {
+          const response = await fetch(`http://localhost:5000/customers/${customerId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              shopName: editingCustomer.shop_name,
+              ownerName: editingCustomer.name,
+              city: editingCustomer.city,
+              area: editingCustomer.area_name,
+              contactNumber: editingCustomer.contact_no
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            const updatedCustomer = {
+              id: result.data.id,
+              shop_name: result.data.shopName,
+              name: result.data.ownerName,
+              city: result.data.city,
+              area_name: result.data.area,
+              contact_no: result.data.contactNumber
+            };
+            setCustomers(prev => prev.map(customer => 
+              customer.id === customerId ? updatedCustomer : customer
+            ));
+            setEditingCustomer(null);
+            setToast({ message: 'Customer updated successfully!', type: 'success' });
+          } else {
+            const error = await response.json();
+            setToast({ message: `Error: ${error.message}`, type: 'error' });
+          }
+        } catch (error) {
+          console.error('Error updating customer:', error);
+          setToast({ message: 'Failed to update customer. Please try again.', type: 'error' });
+        }
       } else {
-        alert('Contact number must be exactly 10 digits');
+        setToast({ message: 'Contact number must be exactly 10 digits', type: 'error' });
       }
     }
   };
@@ -142,9 +272,28 @@ const CustomerModule = () => {
     setIsHistoryModalOpen(false);
   };
 
-  const confirmDelete = (customerId) => {
-    setCustomers(prev => prev.filter(customer => customer.id !== customerId));
-    setShowDeleteConfirm(null);
+  const confirmDelete = async (customerId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/customers/${customerId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setCustomers(prev => prev.filter(customer => customer.id !== customerId));
+        setShowDeleteConfirm(null);
+        setToast({ message: 'Customer deleted successfully!', type: 'success' });
+      } else {
+        const error = await response.json();
+        setToast({ message: `Error: ${error.message}`, type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+      setToast({ message: 'Failed to delete customer. Please try again.', type: 'error' });
+    }
   };
 
   const cancelDelete = () => {
@@ -736,6 +885,15 @@ const CustomerModule = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
       )}
     </div>
   );
