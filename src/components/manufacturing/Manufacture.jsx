@@ -1,40 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, Package, Calendar, Trash2, X, Factory, Edit3, Save, XCircle } from 'lucide-react';
 
-// Simple Toast Component
-const Toast = ({ message, type, onClose }) => {
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      onClose();
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [onClose]);
-
-  return (
-    <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
-      type === 'success' 
-        ? 'bg-green-500 text-white' 
-        : 'bg-red-500 text-white'
-    }`}>
-      <div className="flex items-center space-x-2">
-        <span>{message}</span>
-        <button onClick={onClose} className="ml-2 text-white hover:text-gray-200">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-};
-
 const ManufacturingModule = () => {
   const [manufacturingOrders, setManufacturingOrders] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [measurements, setMeasurements] = useState([]);
   
   // Pagination and Filter states
   const [currentPage, setCurrentPage] = useState(1);
@@ -44,11 +16,20 @@ const ManufacturingModule = () => {
   const [showFilters, setShowFilters] = useState(false);
   
   const [formData, setFormData] = useState({
-    manufacture_date: new Date().toISOString().split('T')[0],
-    product_id: '',
-    measurement_id: '',
-    quantity: ''
+    manufacturing_date: new Date().toISOString().split('T')[0],
+    products: [
+      {
+        id: Date.now(),
+        product: '',
+        uom: '',
+        quantity: ''
+      }
+    ]
   });
+
+  // Static data for dropdowns
+  const products = ['jeera', 'dhaniya', 'chana', 'tal', 'methi'];
+  const uomOptions = ['100gm', '250gm', '500gm', '1kg'];
 
   // Sample manufacturing orders for demonstration
   const sampleOrders = [
@@ -95,79 +76,63 @@ const ManufacturingModule = () => {
     }
   ];
 
-  // Fetch products and measurements from API
-  const fetchProductsAndMeasurements = async () => {
-    try {
-      const [productsRes, measurementsRes] = await Promise.all([
-        fetch('http://localhost:5000/products'),
-        fetch('http://localhost:5000/measurements')
-      ]);
-      
-      if (productsRes.ok && measurementsRes.ok) {
-        const productsData = await productsRes.json();
-        const measurementsData = await measurementsRes.json();
-        setProducts(productsData.data || []);
-        setMeasurements(measurementsData.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching products/measurements:', error);
-    }
-  };
-
-  // Fetch manufacturing data from API
-  const fetchManufacturingData = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/manufactures/all');
-      if (response.ok) {
-        const result = await response.json();
-        setManufacturingOrders(result.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching manufacturing data:', error);
-    }
-  };
-
-  // Initialize data on component mount
+  // Initialize with sample data
   React.useEffect(() => {
-    fetchProductsAndMeasurements();
-    fetchManufacturingData();
+    if (manufacturingOrders.length === 0) {
+      setManufacturingOrders(sampleOrders);
+    }
   }, []);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
+  const handleDateChange = (e) => {
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      manufacturing_date: e.target.value
     }));
+  };
+
+  const handleProductChange = (index, field, value) => {
+    const updatedProducts = [...formData.products];
+    updatedProducts[index] = {
+      ...updatedProducts[index],
+      [field]: value
+    };
+    setFormData(prev => ({
+      ...prev,
+      products: updatedProducts
+    }));
+  };
+
+  const addProductLine = () => {
+    const newProduct = {
+      id: Date.now() + Math.random(),
+      product: '',
+      uom: '',
+      quantity: ''
+    };
+    setFormData(prev => ({
+      ...prev,
+      products: [...prev.products, newProduct]
+    }));
+  };
+
+  const removeProductLine = (index) => {
+    if (formData.products.length > 1) {
+      const updatedProducts = formData.products.filter((_, i) => i !== index);
+      setFormData(prev => ({
+        ...prev,
+        products: updatedProducts
+      }));
+    }
   };
 
   const handleDeleteOrder = (orderId) => {
     setShowDeleteConfirm(orderId);
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = () => {
     if (showDeleteConfirm) {
-      try {
-        const response = await fetch(`http://localhost:5000/manufactures/${showDeleteConfirm}`, {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-
-        if (response.ok) {
-          setToast({ message: 'Manufacturing record deleted successfully!', type: 'success' });
-          setShowDeleteConfirm(null);
-          // Refresh data
-          fetchManufacturingData();
-        } else {
-          const error = await response.json();
-          setToast({ message: `Error: ${error.message}`, type: 'error' });
-        }
-      } catch (error) {
-        console.error('Error deleting manufacturing record:', error);
-        setToast({ message: 'Failed to delete manufacturing record. Please try again.', type: 'error' });
-      }
+      setManufacturingOrders(prev => prev.filter(order => order.id !== showDeleteConfirm));
+      setShowDeleteConfirm(null);
     }
   };
 
@@ -175,45 +140,65 @@ const ManufacturingModule = () => {
     setShowDeleteConfirm(null);
   };
 
-  const handleSubmit = async () => {
-    if (formData.manufacture_date && formData.product_id && formData.measurement_id && formData.quantity) {
-      try {
-        const response = await fetch('http://localhost:5000/manufactures/add', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            product_id: parseInt(formData.product_id),
-            measurement_id: parseInt(formData.measurement_id),
-            manufacture_date: formData.manufacture_date,
-            quantity: parseInt(formData.quantity)
-          })
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          setToast({ message: 'Manufacturing record created successfully!', type: 'success' });
-          // Reset form
-          setFormData({
-            manufacture_date: new Date().toISOString().split('T')[0],
-            product_id: '',
-            measurement_id: '',
-            quantity: ''
-          });
-          setIsModalOpen(false);
-          // Refresh data
-          fetchManufacturingData();
-        } else {
-          const error = await response.json();
-          setToast({ message: `Error: ${error.message}`, type: 'error' });
-        }
-      } catch (error) {
-        console.error('Error creating manufacturing record:', error);
-        setToast({ message: 'Failed to create manufacturing record. Please try again.', type: 'error' });
+  const handleSubmit = () => {
+    const hasValidProducts = formData.products.every(p => 
+      p.product && p.uom && p.quantity && parseInt(p.quantity) > 0
+    );
+    
+    if (formData.manufacturing_date && hasValidProducts) {
+      // Check if an order already exists for this date
+      const existingOrderIndex = manufacturingOrders.findIndex(
+        order => order.manufacturing_date === formData.manufacturing_date
+      );
+      
+      if (existingOrderIndex !== -1) {
+        // Merge products into existing order
+        const existingOrder = manufacturingOrders[existingOrderIndex];
+        const newProducts = formData.products.map(p => ({
+          ...p,
+          id: Date.now() + Math.random(),
+          quantity: parseInt(p.quantity)
+        }));
+        
+        const updatedOrder = {
+          ...existingOrder,
+          products: [...existingOrder.products, ...newProducts]
+        };
+        
+        setManufacturingOrders(prev => 
+          prev.map((order, index) => 
+            index === existingOrderIndex ? updatedOrder : order
+          )
+        );
+      } else {
+        // Create new order
+      const newOrder = {
+        id: Date.now(),
+        manufacturing_date: formData.manufacturing_date,
+        products: formData.products.map(p => ({
+          ...p,
+            quantity: parseInt(p.quantity)
+          }))
+      };
+      
+      setManufacturingOrders(prev => [newOrder, ...prev]);
       }
+      
+      // Reset form
+      setFormData({
+        manufacturing_date: new Date().toISOString().split('T')[0],
+        products: [
+          {
+            id: Date.now(),
+            product: '',
+            uom: '',
+            quantity: ''
+          }
+        ]
+      });
+      setIsModalOpen(false);
     } else {
-      setToast({ message: 'Please fill all required fields', type: 'error' });
+      alert('Please fill all required fields with valid data');
     }
   };
 
@@ -309,29 +294,41 @@ const ManufacturingModule = () => {
 
   // Filter orders by date range
   const filteredOrders = useMemo(() => {
+    console.log('=== FILTER DEBUG ===');
+    console.log('Start Date:', startDate);
+    console.log('End Date:', endDate);
+    console.log('Total Orders:', manufacturingOrders.length);
+    
     // If no dates are set, return all orders
     if (!startDate && !endDate) {
+      console.log('No filters applied - showing all orders');
       return manufacturingOrders;
     }
     
     const filtered = manufacturingOrders.filter(order => {
-      const orderDate = order.manufacture_date;
+      const orderDate = order.manufacturing_date;
+      console.log(`Checking order ${order.id} with date: ${orderDate}`);
       
       let matches = true;
       
       if (startDate) {
         const startMatch = orderDate >= startDate;
+        console.log(`  Start check: ${orderDate} >= ${startDate} = ${startMatch}`);
         matches = matches && startMatch;
       }
       
       if (endDate) {
         const endMatch = orderDate <= endDate;
+        console.log(`  End check: ${orderDate} <= ${endDate} = ${endMatch}`);
         matches = matches && endMatch;
       }
       
+      console.log(`  Final result: ${matches ? 'INCLUDED' : 'EXCLUDED'}`);
       return matches;
     });
     
+    console.log('Filtered results:', filtered.length, 'orders');
+    console.log('=== END FILTER DEBUG ===');
     return filtered;
   }, [manufacturingOrders, startDate, endDate]);
 
@@ -458,7 +455,38 @@ const ManufacturingModule = () => {
                       <Calendar className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <p className="text-white font-semibold">{formatDate(order.manufacture_date)}</p>
+                      {editingOrder === order.id ? (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="date"
+                            defaultValue={order.manufacturing_date}
+                            onBlur={(e) => updateOrderDate(order.id, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                updateOrderDate(order.id, e.target.value);
+                              }
+                            }}
+                            className="bg-white bg-opacity-90 text-slate-800 px-2 py-1 rounded text-sm font-semibold"
+                            autoFocus
+                          />
+                          <button
+                            onClick={stopEditingOrder}
+                            className="text-white hover:text-green-200 transition-colors"
+                          >
+                            <Save className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <p className="text-white font-semibold">{formatDate(order.manufacturing_date)}</p>
+                          <button
+                            onClick={() => startEditingOrder(order.id)}
+                            className="text-white text-opacity-70 hover:text-opacity-100 transition-colors"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
                       <p className="text-green-100 text-sm">Manufacturing Date</p>
                     </div>
                   </div>
@@ -471,40 +499,127 @@ const ManufacturingModule = () => {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                </div>
-              </div>
+                    </div>
+                  </div>
                   
               {/* Card Body - Products */}
               <div className="p-4">
-                {/* Product Information */}
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Product</p>
-                      <p className="text-sm font-medium text-slate-800">{order.product?.name || 'N/A'}</p>
+                
+                {/* Column Headers */}
+                <div className="grid grid-cols-12 gap-2 items-center mb-3 px-3 py-2 bg-slate-100 rounded-lg">
+                  <div className="col-span-4">
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Product</p>
+                  </div>
+                  <div className="col-span-3">
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Measurement</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Quantity</p>
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Measurement</p>
-                      <p className="text-sm text-slate-600">{order.measurement?.name || 'N/A'}</p>
+                  <div className="col-span-3">
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Quantity</p>
-                      <p className="text-sm text-slate-600">{order.quantity}</p>
+                  </div>
+                  
+                <div className="space-y-3">
+                  {order.products.map((product) => (
+                    <div key={product.id} className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        {editingProduct === `${order.id}-${product.id}` ? (
+                          <>
+                            <div className="col-span-4">
+                              <select
+                                defaultValue={product.product}
+                                onChange={(e) => updateProduct(order.id, product.id, 'product', e.target.value)}
+                                className="w-full text-xs px-2 py-1 border border-slate-300 rounded focus:ring-1 focus:ring-green-500"
+                              >
+                                {products.map(p => (
+                                  <option key={p} value={p} className="capitalize">{p}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-span-3">
+                              <select
+                                defaultValue={product.uom}
+                                onChange={(e) => updateProduct(order.id, product.id, 'uom', e.target.value)}
+                                className="w-full text-xs px-2 py-1 border border-slate-300 rounded focus:ring-1 focus:ring-green-500"
+                              >
+                                {uomOptions.map(uom => (
+                                  <option key={uom} value={uom}>{uom}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-span-2">
+                              <input
+                                type="number"
+                                defaultValue={product.quantity}
+                                onChange={(e) => updateProduct(order.id, product.id, 'quantity', e.target.value)}
+                                className="w-full text-xs px-2 py-1 border border-slate-300 rounded focus:ring-1 focus:ring-green-500"
+                                min="0"
+                                step="1"
+                              />
+                            </div>
+                            <div className="col-span-3 flex justify-end space-x-1">
+                              <button
+                                onClick={stopEditingProduct}
+                                className="bg-green-100 hover:bg-green-200 text-green-700 p-1 rounded transition-colors"
+                                title="Save"
+                              >
+                                <Save className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => deleteProductFromOrder(order.id, product.id)}
+                                className="bg-red-100 hover:bg-red-200 text-red-700 p-1 rounded transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="col-span-4">
+                              <p className="text-sm font-medium text-slate-800 capitalize">{product.product}</p>
+                            </div>
+                            <div className="col-span-3">
+                              <p className="text-sm text-slate-600">{product.uom}</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-sm text-slate-600">{product.quantity}</p>
+                      </div>
+                            <div className="col-span-3 flex justify-end space-x-1">
+                              <button
+                                onClick={() => startEditingProduct(order.id, product.id)}
+                                className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-1 rounded transition-colors"
+                                title="Edit"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => deleteProductFromOrder(order.id, product.id)}
+                                className="bg-red-100 hover:bg-red-200 text-red-700 p-1 rounded transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                      </div>
+                          </>
+                        )}
+                    </div>
+                  </div>
+                    ))}
                     </div>
                   </div>
                 </div>
+              ))
+            ) : (
+            <div className="col-span-full">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-12 text-center">
+                <Factory className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500 text-xl mb-2">No manufacturing orders found</p>
+                <p className="text-slate-400">Create your first manufacturing order to get started</p>
               </div>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-full">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-12 text-center">
-              <Factory className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-              <p className="text-slate-500 text-xl mb-2">No manufacturing orders found</p>
-              <p className="text-slate-400">Create your first manufacturing order to get started</p>
-            </div>
-          </div>
-        )}
+              </div>
+            )}
       </div>
 
       {/* Pagination */}
@@ -546,10 +661,10 @@ const ManufacturingModule = () => {
               >
                 Next
               </button>
-            </div>
           </div>
         </div>
-      )}
+          </div>
+        )}
     </div>
 
     {/* Modal */}
@@ -576,68 +691,90 @@ const ManufacturingModule = () => {
               </label>
               <input
                 type="date"
-                name="manufacture_date"
-                value={formData.manufacture_date}
-                onChange={handleInputChange}
+                value={formData.manufacturing_date}
+                onChange={handleDateChange}
                 className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
                 required
               />
             </div>
 
-            {/* Product Selection */}
+            {/* Products Section */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Product *
-              </label>
-              <select
-                name="product_id"
-                value={formData.product_id}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                required
-              >
-                <option value="">Select Product</option>
-                {products.map(product => (
-                  <option key={product.id} value={product.id}>{product.name}</option>
-                ))}
-              </select>
-            </div>
+              <div className="mb-4">
+                <label className="text-sm font-medium text-slate-700">
+                  Products *
+                </label>
+              </div>
 
-            {/* Measurement Selection */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Measurement *
-              </label>
-              <select
-                name="measurement_id"
-                value={formData.measurement_id}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                required
-              >
-                <option value="">Select Measurement</option>
-                {measurements.map(measurement => (
-                  <option key={measurement.id} value={measurement.id}>{measurement.name}</option>
-                ))}
-              </select>
-            </div>
+              <div className="space-y-4">
+                {formData.products.map((product, index) => (
+                  <div key={product.id} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Product
+                        </label>
+                        <select
+                          value={product.product}
+                          onChange={(e) => handleProductChange(index, 'product', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          required
+                        >
+                          <option value="">Select Product</option>
+                          {products.map(p => (
+                            <option key={p} value={p} className="capitalize">{p}</option>
+                          ))}
+                        </select>
+                      </div>
 
-            {/* Quantity */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Quantity *
-              </label>
-              <input
-                type="number"
-                name="quantity"
-                value={formData.quantity}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                placeholder="Enter quantity"
-                min="1"
-                step="1"
-                required
-              />
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Unit of Measure
+                        </label>
+                        <select
+                          value={product.uom}
+                          onChange={(e) => handleProductChange(index, 'uom', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          required
+                        >
+                          <option value="">Select UOM</option>
+                          {uomOptions.map(uom => (
+                            <option key={uom} value={uom}>{uom}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Quantity
+                        </label>
+                        <input
+                          type="number"
+                          value={product.quantity}
+                          onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                          required
+                        />
+                      </div>
+
+                      <div className="flex items-end">
+                        {formData.products.length > 1 && (
+                          <button
+                            onClick={() => removeProductLine(index)}
+                            className="w-full bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center space-x-1"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span>Remove</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             
             <div className="flex space-x-3">
@@ -697,16 +834,7 @@ const ManufacturingModule = () => {
         </div>
       </div>
     )}
-
-      {/* Toast Notification */}
-      {toast && (
-        <Toast 
-          message={toast.message} 
-          type={toast.type} 
-          onClose={() => setToast(null)} 
-        />
-      )}
-    </div>
+  </div>
   );
 };
 
