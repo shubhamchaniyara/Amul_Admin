@@ -8,9 +8,9 @@ const Layout = () => {
 
   const menuItems = [
     { id: 'customer', name: 'Customer', icon: Users, path: '/customer' },
-    { id: 'manufacturing', name: 'Manufacturing', icon: Package, path: '/manufacturing' },
-    { id: 'record', name: 'Record', icon: FileText, path: '/record' },
-    { id: 'sell', name: 'Sell', icon: ShoppingCart, path: '/sell' }
+    { id: 'manufacturing', name: 'Manufacture', icon: Package, path: '/manufacturing' },
+    { id: 'sell', name: 'Sale', icon: ShoppingCart, path: '/sell' },
+    { id: 'record', name: 'Stock', icon: FileText, path: '/record' }
   ];
 
   const getActiveModule = () => {

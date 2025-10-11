@@ -34,9 +34,22 @@ const CustomerModule = () => {
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [toast, setToast] = useState(null);
+  const [customerSales, setCustomerSales] = useState([]);
+  const [loadingSales, setLoadingSales] = useState(false);
   const [filters, setFilters] = useState({
+    shopName: '',
     city: '',
     area_name: ''
+  });
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalCount: 0,
+    limit: 30,
+    hasNext: false,
+    hasPrev: false
   });
   
   const [formData, setFormData] = useState({
@@ -47,12 +60,24 @@ const CustomerModule = () => {
     contact_no: ''
   });
 
-  const fetchAllCustomers = async () => {
+  const fetchCustomers = async (page = 1, filterShopName = filters.shopName, filterCity = filters.city, filterArea = filters.area_name) => {
     try {
-      const response = await fetch('http://localhost:5000/customers/all');
+      // Build query parameters
+      let queryParams = `page=${page}&limit=30`;
+      if (filterShopName) {
+        queryParams += `&shopName=${encodeURIComponent(filterShopName)}`;
+      }
+      if (filterCity) {
+        queryParams += `&city=${encodeURIComponent(filterCity)}`;
+      }
+      if (filterArea) {
+        queryParams += `&area=${encodeURIComponent(filterArea)}`;
+      }
+      
+      const response = await fetch(`http://localhost:5000/customers?${queryParams}`);
       if (response.ok) {
         const result = await response.json();
-        const formattedCustomers = result.data.map(customer => ({
+        const formattedCustomers = result.customers.map(customer => ({
           id: customer.id,
           shop_name: customer.shopName,
           name: customer.ownerName,
@@ -61,6 +86,16 @@ const CustomerModule = () => {
           contact_no: customer.contactNumber
         }));
         setCustomers(formattedCustomers);
+        
+        // Update pagination state
+        setPagination(result.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          totalCount: 0,
+          limit: 30,
+          hasNext: false,
+          hasPrev: false
+        });
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -69,7 +104,7 @@ const CustomerModule = () => {
 
   // Load customers from API on component mount
   React.useEffect(() => {
-    fetchAllCustomers();
+    fetchCustomers();
   }, []);
 
   const handleInputChange = (e) => {
@@ -155,57 +190,47 @@ const CustomerModule = () => {
   };
 
   // Fetch filtered customers from API
-  const fetchFilteredCustomers = async () => {
-    try {
-      const queryParams = new URLSearchParams();
-      if (filters.city) queryParams.append('city', filters.city);
-      if (filters.area_name) queryParams.append('area', filters.area_name);
-      
-      const url = `http://localhost:5000/customers?${queryParams.toString()}`;
-      const response = await fetch(url);
-      
-      if (response.ok) {
-        const result = await response.json();
-        const formattedCustomers = result.data.map(customer => ({
-          id: customer.id,
-          shop_name: customer.shopName,
-          name: customer.ownerName,
-          city: customer.city,
-          area_name: customer.area,
-          contact_no: customer.contactNumber
-        }));
-        setCustomers(formattedCustomers);
-      }
-    } catch (error) {
-      console.error('Error fetching filtered customers:', error);
-    }
-  };
+  // Fetch customers when filters change
+  React.useEffect(() => {
+    fetchCustomers(1, filters.shopName, filters.city, filters.area_name);
+  }, [filters]);
 
   const filteredCustomers = customers; // Now using API-filtered data
 
   const clearFilters = () => {
-    setFilters({ city: '', area_name: '' });
-    // Fetch all customers when clearing filters
-    fetchAllCustomers();
+    setFilters({ shopName: '', city: '', area_name: '' });
+    fetchCustomers(1, '', '', '');
   };
 
-  // Trigger filtering when filters change
-  React.useEffect(() => {
-    if (filters.city || filters.area_name) {
-      fetchFilteredCustomers();
-    } else {
-      fetchAllCustomers();
+
+  const fetchCustomerSales = async (customerId) => {
+    try {
+      setLoadingSales(true);
+      const response = await fetch(`http://localhost:5000/customers/${customerId}/sales`);
+      if (response.ok) {
+        const result = await response.json();
+        setCustomerSales(result.deliveredSales || []);
+      } else {
+        setCustomerSales([]);
+      }
+    } catch (error) {
+      console.error('Error fetching customer sales:', error);
+      setCustomerSales([]);
+    } finally {
+      setLoadingSales(false);
     }
-  }, [filters]);
+  };
 
   const handleCustomerClick = (customer) => {
     setSelectedCustomer(customer);
     setIsHistoryModalOpen(true);
+    fetchCustomerSales(customer.id);
   };
 
   const closeHistoryModal = () => {
     setIsHistoryModalOpen(false);
     setSelectedCustomer(null);
+    setCustomerSales([]);
   };
 
   const handleEditCustomer = (customer) => {
@@ -243,10 +268,18 @@ const CustomerModule = () => {
               area_name: result.data.area,
               contact_no: result.data.contactNumber
             };
+            
+            // Update the customers list immediately
             setCustomers(prev => prev.map(customer => 
               customer.id === customerId ? updatedCustomer : customer
             ));
+            
+            // Update the selected customer in the modal
+            setSelectedCustomer(updatedCustomer);
+            
+            // Exit edit mode
             setEditingCustomer(null);
+            
             setToast({ message: 'Customer updated successfully!', type: 'success' });
           } else {
             const error = await response.json();
@@ -263,6 +296,11 @@ const CustomerModule = () => {
   };
 
   const handleCancelEdit = () => {
+    // Reset to original customer data
+    const originalCustomer = customers.find(customer => customer.id === selectedCustomer.id);
+    if (originalCustomer) {
+      setSelectedCustomer(originalCustomer);
+    }
     setEditingCustomer(null);
   };
 
@@ -324,7 +362,7 @@ const CustomerModule = () => {
                   <Search className="h-5 w-5 text-slate-500" />
                   <h2 className="text-lg font-semibold text-slate-800">Filter Customers</h2>
                 </div>
-                {(filters.city || filters.area_name) && (
+                {(filters.shopName || filters.city || filters.area_name) && (
                   <button
                     onClick={clearFilters}
                     className="text-sm text-blue-600 hover:text-blue-700 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-colors duration-200"
@@ -334,13 +372,25 @@ const CustomerModule = () => {
                 )}
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <input
+                    type="text"
+                    name="shopName"
+                    placeholder="Shop name"
+                    value={filters.shopName}
+                    onChange={handleFilterChange}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50 hover:bg-white"
+                  />
+                </div>
+                
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
                   <input
                     type="text"
                     name="city"
-                    placeholder="Filter by city"
+                    placeholder="City"
                     value={filters.city}
                     onChange={handleFilterChange}
                     className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50 hover:bg-white"
@@ -348,11 +398,11 @@ const CustomerModule = () => {
                 </div>
                 
                 <div className="relative">
-                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
                   <input
                     type="text"
                     name="area_name"
-                    placeholder="Filter by area"
+                    placeholder="Area"
                     value={filters.area_name}
                     onChange={handleFilterChange}
                     className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50 hover:bg-white"
@@ -365,11 +415,7 @@ const CustomerModule = () => {
 
         {/* Customer List */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-          <div className="p-6 border-b border-slate-200">
-            <h2 className="text-lg font-semibold text-slate-800">
-              Customers ({filteredCustomers.length})
-            </h2>
-          </div>
+          
           
           <div className="p-6">
             {filteredCustomers.length > 0 ? (
@@ -503,6 +549,68 @@ const CustomerModule = () => {
               </div>
             )}
           </div>
+          
+          {/* Pagination Controls */}
+          {customers.length > 0 && pagination.totalPages > 1 && (
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mt-6">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-slate-600">
+                  Showing page {pagination.currentPage} of {pagination.totalPages}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => fetchCustomers(pagination.currentPage - 1, filters.shopName, filters.city, filters.area_name)}
+                    disabled={!pagination.hasPrev}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                  >
+                    Previous
+                  </button>
+                  
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      const page = i + 1;
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => fetchCustomers(page, filters.shopName, filters.city, filters.area_name)}
+                          className={`px-3 py-2 rounded-lg font-medium transition-colors duration-200 ${
+                            pagination.currentPage === page
+                              ? 'bg-blue-600 text-white'
+                              : 'text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                    {pagination.totalPages > 5 && (
+                      <>
+                        <span className="px-2 text-slate-400">...</span>
+                        <button
+                          onClick={() => fetchCustomers(pagination.totalPages, filters.shopName, filters.city, filters.area_name)}
+                          className={`px-3 py-2 rounded-lg font-medium transition-colors duration-200 ${
+                            pagination.currentPage === pagination.totalPages
+                              ? 'bg-blue-600 text-white'
+                              : 'text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {pagination.totalPages}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={() => fetchCustomers(pagination.currentPage + 1, filters.shopName, filters.city, filters.area_name)}
+                    disabled={!pagination.hasNext}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
       {/* Modal */}
@@ -635,24 +743,14 @@ const CustomerModule = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                   {editingCustomer?.id === selectedCustomer.id ? (
-                    <>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg shadow-lg transition-colors duration-200 flex items-center space-x-2"
-                        title="Cancel editing"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        <span>Cancel</span>
-                      </button>
-                      <button
-                        onClick={() => handleSaveEdit(selectedCustomer.id)}
-                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg transition-colors duration-200 flex items-center space-x-2"
-                        title="Save changes"
-                      >
-                        <Check className="h-4 w-4" />
-                        <span>Save</span>
-                      </button>
-                    </>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg shadow-lg transition-colors duration-200 flex items-center space-x-2"
+                      title="Cancel editing"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      <span>Cancel</span>
+                    </button>
                   ) : (
                     <>
                       <button
@@ -752,12 +850,6 @@ const CustomerModule = () => {
                     
                     <div className="flex space-x-3 pt-4">
                       <button
-                        onClick={handleCancelEdit}
-                        className="px-4 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 font-medium transition-colors duration-200"
-                      >
-                        Cancel
-                      </button>
-                      <button
                         onClick={() => handleSaveEdit(selectedCustomer.id)}
                         className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
                       >
@@ -820,28 +912,92 @@ const CustomerModule = () => {
                 )}
               </div>
 
-              {/* History Section */}
+              {/* Sales History Section */}
               <div className="bg-white border border-slate-200 rounded-xl p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="bg-indigo-100 rounded-lg p-2">
-                    <Users className="h-5 w-5 text-indigo-600" />
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-indigo-100 rounded-lg p-2">
+                      <Users className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-semibold text-slate-800">Sales History</h4>
+        
+                    </div>
                   </div>
-                  <h4 className="text-lg font-semibold text-slate-800">Transaction History</h4>
                 </div>
                 
-                {/* Placeholder for history data */}
-                <div className="text-center py-12">
-                  <div className="bg-slate-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                    <Users className="h-8 w-8 text-slate-400" />
+                {loadingSales ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                    <p className="text-slate-600">Loading...</p>
                   </div>
-                  <h5 className="text-lg font-medium text-slate-600 mb-2">No History Available</h5>
-                  <p className="text-slate-500 mb-4">Transaction history will be displayed here once the backend is connected.</p>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
-                    <p className="text-sm text-blue-700">
-                      <strong>Note:</strong> This feature requires backend integration to fetch and display customer transaction history.
-                    </p>
+                ) : customerSales.length > 0 ? (
+                  <div className="space-y-4">
+                    {customerSales.map((sale, index) => (
+                      <div key={sale.id} className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-5 hover:shadow-md transition-all duration-200">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-green-100 rounded-lg p-2">
+                              <Building className="h-4 w-4 text-green-600" />
+                            </div>
+                            <div>
+                              <h5 className="font-semibold text-slate-800 text-lg">{sale.product.name}</h5>
+                              <p className="text-sm text-slate-600">{sale.measurement.name}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xl font-bold text-green-700">₹{sale.total_amount.toFixed(2)}</p>
+                            <p className="text-sm text-slate-500">Total Amount</p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mt-4">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span className="text-slate-600">Status: <span className="font-medium text-green-700">Delivered</span></span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span className="text-slate-600">Qty: <span className="font-medium">{sale.qty}</span> | Price: <span className="font-medium">₹{sale.price.toFixed(2)}</span></span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                            <span className="text-slate-600">Date: <span className="font-medium">{new Date(sale.delivered_date).toLocaleDateString()}</span></span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Summary Card */}
+                    <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-6 mt-8">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="bg-indigo-100 rounded-lg p-3">
+                            <Users className="h-6 w-6 text-indigo-600" />
+                          </div>
+                          <div>
+                            <h5 className="font-semibold text-slate-800 text-lg">Total Summary</h5>
+                            <p className="text-sm text-slate-600">All orders</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-3xl font-bold text-indigo-700">
+                            ₹{customerSales.reduce((total, sale) => total + sale.total_amount, 0).toFixed(2)}
+                          </p>
+                          <p className="text-sm text-slate-500">{customerSales.length} orders</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="bg-slate-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                      <Users className="h-8 w-8 text-slate-400" />
+                    </div>
+                    <h5 className="text-lg font-medium text-slate-600 mb-2">No Sales History</h5>
+                    <p className="text-slate-500">No orders found.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
